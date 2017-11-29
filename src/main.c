@@ -17,5 +17,5 @@ int main(){
 	DDRD &= ~(1 << lineLeft1);
 	DDRD &= ~(1 << lineLeft2);
 
-    OC2A=50;
+    init_printf_tools();
 }
