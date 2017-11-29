@@ -10,12 +10,18 @@
 #define lineLeft1 PD5
 #define lineLeft2 PD4
 
-int main(){
-	DDRD &= ~(1 << lineRight2);
-	DDRD &= ~(1 << lineRight1);
-	DDRD &= ~(1 << lineCenter);
-	DDRD &= ~(1 << lineLeft1);
-	DDRD &= ~(1 << lineLeft2);
+void configureIO(){
+    DDRD &= ~(1 << lineRight2);
+    DDRD &= ~(1 << lineRight1);
+    DDRD &= ~(1 << lineCenter);
+    DDRD &= ~(1 << lineLeft1);
+    DDRD &= ~(1 << lineLeft2);
 
+    printf("I/O Configured!");
+}
+
+int main(){
     init_printf_tools();
+
+    configureIO();
 }
