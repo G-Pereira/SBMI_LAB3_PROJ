@@ -49,13 +49,27 @@ void configurePWM(){
     TCCR2A = 0; // Normal Mode
 }
 
-void setLeftMotor(uint8_t percentageLoad){
-    OCR2A = percentageLoad;
+void setLeftMotor(uint8_t velocity){
+  if(velocity>0){
+    OCR2A = (velocity/2) * 255;
+    PORTD &= ~(1<<motorLeftDigital);
+  }else if(velocity<0){
+    OCR2A = 255 - (velocity/2) * 255;
+    PORTD |= (1<<motorLeftDigital);
+  }
+    
 }
 
-void setRightMotor(uint8_t percentageLoad){
-    OCR2B = percentageLoad;
+void setRightMotor(uint8_t velocity){
+  if(velocity>0){
+    OCR2B = (velocity/2) * 255;
+    PORTD &= ~(1<<motorRightDigital);
+  }else if(velocity<0){
+    OCR2B = 255 - (velocity/2) * 255;
+    PORTD |= (1<<motorRightDigital);
+  }
 }
+
 
 int main(){
     init_printf_tools();
@@ -63,7 +77,28 @@ int main(){
     configureIO();
     configurePWM();
 
+    uint8_t left, right, center;
+
     while(1){
-        
+      left = PIND && (1<<lineLeft)?1:0;
+      right = PINB && (1<<lineRight)?1:0;
+      center = PINB && (1<<lineCenter)?1:0;
+
+      if(left == 1 && center == 1){
+      setRightMotor(FASTFORWARD);
+      setLeftMotor(SLOWFORWARD);
+    }else if(left == 1 && center == 0){
+      setRightMotor(FASTFORWARD);
+      setLeftMotor(STOP);
+    }else if(right == 1 && center == 1){
+      setRightMotor(SLOWFORWARD);
+      setRightMotor(FASTFORWARD);
+    }else if(right == 1 && center == 0){
+      setRightMotor(STOP);
+      setLeftMotor(FASTFORWARD);
+    }else if(right == 0 && left == 0 && center == 1){
+      setRightMotor(FASTFORWARD);
+      setLeftMotor(FASTFORWARD);
     }
-}
+    }
+    }
