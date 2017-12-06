@@ -4,17 +4,37 @@
 #include <avr/eeprom.h>
 #include "printf_tools.h"
 
-#define lineRight PB0
-#define lineLeft PB1
-#define lineCenter PB2
+#define lineRight PB4
+#define lineLeft PD7
+#define lineCenter PB0
 
-#define leftMotor PB3
-#define rightMotor PD3
+#define motorLeftPWM PB3
+#define motorLeftDigital PD4 
+#define motorLeftEnable PD6
+
+#define motorRightPWM PD3
+#define motorRightDigital PD5
+#define motorRightEnable PB5
+
+#define FASTFORWARD 2
+#define SLOWFORWARD 1
+#define STOP 0
+#define SLOWBACKWARD (-1)
+#define FASTBACKWARD (-2)
 
 void configureIO(){
-    DDRD &= ~(1 << lineRight);
-    DDRD &= ~(1 << lineCenter);
-    DDRD &= ~(1 << lineLeft);
+  // Line Sensors
+  DDRB &= ~(1 << lineRight);
+  DDRD &= ~(1 << lineCenter);
+  DDRB &= ~(1 << lineLeft);
+  
+  // Motors
+  DDRB |= (1 << motorLeftPWM);
+  DDRD |= (1 << motorLeftDigital);
+  DDRB |= (1 << motorLeftEnable);
+  DDRD |= (1 << motorRightPWM);
+  DDRD |= (1 << motorRightDigital);
+  DDRB |= (1 << motorRightEnable);
 
     printf("I/O Configured!");
 }
