@@ -25,18 +25,16 @@
 void configureIO() {
     // Line Sensors
     DDRB &= ~(1 << lineRight);
-    DDRD &= ~(1 << lineCenter);
-    DDRB &= ~(1 << lineLeft);
+    DDRB &= ~(1 << lineCenter);
+    DDRD &= ~(1 << lineLeft);
 
     // Motors
     DDRB |= (1 << motorLeftPWM);
     DDRD |= (1 << motorLeftDigital);
-    DDRB |= (1 << motorLeftEnable);
+    DDRD |= (1 << motorLeftEnable);
     DDRD |= (1 << motorRightPWM);
     DDRD |= (1 << motorRightDigital);
     DDRB |= (1 << motorRightEnable);
-
-    printf("I/O Configured!");
 }
 
 void configurePWM() {
@@ -69,7 +67,6 @@ void setRightMotor(uint8_t velocity) {
         PORTD |= (1 << motorRightDigital);
     }
 }
-
 
 int main() {
     init_printf_tools();
