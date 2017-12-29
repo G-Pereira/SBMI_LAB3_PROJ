@@ -4,17 +4,22 @@
 #include <avr/eeprom.h>
 #include "printf_tools.h"
 
-#define lineRight PB4
-#define lineLeft PD7
-#define lineCenter PB0
+#define lineRight PA5
+#define lineCenterRight PA2
+#define lineCenter PA3
+#define lineCenterLeft PA0
+#define lineLeft PA1
 
-#define motorLeftPWM PB3
-#define motorLeftDigital PD4
-#define motorLeftEnable PD6
+#define motorLeftPWM PH6
+#define motorLeftDigital PB5
 
-#define motorRightPWM PD3
-#define motorRightDigital PD5
-#define motorRightEnable PB5
+#define motorRightPWM PB4
+#define motorRightDigital PH5
+
+#define encoderRightC1 PE4
+#define encoderRightC2 PE5
+#define encoderLeftC1 PD2
+#define encoderLeftC2 PD3
 
 #define FASTFORWARD 2
 #define SLOWFORWARD 1
@@ -24,17 +29,17 @@
 
 void configureIO() {
     // Line Sensors
-    DDRB &= ~(1 << lineRight);
-    DDRB &= ~(1 << lineCenter);
-    DDRD &= ~(1 << lineLeft);
+    DDRA &= ~(1 << lineRight);
+    DDRA &= ~(1 << lineCenterRight);
+    DDRA &= ~(1 << lineCenter);
+    DDRA &= ~(1 << lineCenterLeft);
+    DDRA &= ~(1 << lineLeft);
 
     // Motors
-    DDRB |= (1 << motorLeftPWM);
-    DDRD |= (1 << motorLeftDigital);
-    DDRD |= (1 << motorLeftEnable);
-    DDRD |= (1 << motorRightPWM);
-    DDRD |= (1 << motorRightDigital);
-    DDRB |= (1 << motorRightEnable);
+    DDRH |= (1 << motorLeftPWM);
+    DDRB |= (1 << motorLeftDigital);
+    DDRB |= (1 << motorRightPWM);
+    DDRH |= (1 << motorRightDigital);
 }
 
 void configurePWM() {
@@ -44,10 +49,9 @@ void configurePWM() {
      */
     TCCR2A |= (1 << COM2A1) | (1 << COM2B1) | (1 << WGM20) | (1 << WGM21);
     TCCR2B |= (1 << WGM22) | (1 << CS20);
-    TCCR2A = 0; // Normal Mode
 }
 
-void setLeftMotor(uint8_t velocity) {
+void setRightMotor(uint8_t velocity) {
     if (velocity > 0) {
         OCR2A = (velocity / 2) * 255;
         PORTD &= ~(1 << motorLeftDigital);
@@ -58,7 +62,7 @@ void setLeftMotor(uint8_t velocity) {
 
 }
 
-void setRightMotor(uint8_t velocity) {
+void setLeftMotor(uint8_t velocity) {
     if (velocity > 0) {
         OCR2B = (velocity / 2) * 255;
         PORTD &= ~(1 << motorRightDigital);
@@ -74,27 +78,33 @@ int main() {
     configureIO();
     configurePWM();
 
-    uint8_t left, right, center;
+    uint8_t left, leftCenter, center, rightCenter, right;
 
     while (1) {
-        left = PIND && (1 << lineLeft) ? 1 : 0;
-        right = PINB && (1 << lineRight) ? 1 : 0;
-        center = PINB && (1 << lineCenter) ? 1 : 0;
+        left = PINA && (1 << lineLeft) ? 1 : 0;
+        leftCenter = PINA && (1 << lineCenterLeft) ? 1 : 0;
+        center = PINA && (1 << lineCenter) ? 1 : 0;
+        rightCenter = PINA && (1 << lineCenterRight) ? 1 : 0;
+        right = PINA && (1 << lineRight) ? 1 : 0;
 
-        if (left == 1 && center == 1) {
+        if (!left && !leftCenter && !center && !rightCenter && !right){
+            setRightMotor(STOP);
+            setLeftMotor(STOP);
+        }
+        else if ((leftCenter && center && rightCenter)||(!rightCenter && center && !leftCenter)) {
+            setRightMotor(FASTFORWARD);
+            setLeftMotor(FASTFORWARD);
+        } else if (rightCenter && ! right){
+            setRightMotor(SLOWFORWARD);
+            setLeftMotor(FASTFORWARD);
+        } else if (leftCenter && ! left){
             setRightMotor(FASTFORWARD);
             setLeftMotor(SLOWFORWARD);
-        } else if (left == 1 && center == 0) {
+        } else if (!leftCenter && left){
             setRightMotor(FASTFORWARD);
             setLeftMotor(STOP);
-        } else if (right == 1 && center == 1) {
-            setRightMotor(SLOWFORWARD);
-            setRightMotor(FASTFORWARD);
-        } else if (right == 1 && center == 0) {
+        } else if (!rightCenter && right){
             setRightMotor(STOP);
-            setLeftMotor(FASTFORWARD);
-        } else if (right == 0 && left == 0 && center == 1) {
-            setRightMotor(FASTFORWARD);
             setLeftMotor(FASTFORWARD);
         }
     }
