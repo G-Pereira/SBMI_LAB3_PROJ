@@ -10,10 +10,10 @@
 #define lineCenterLeft PA0
 #define lineLeft PA1
 
-#define motorLeftPWM PH6
+#define motorLeftPWM PE3
 #define motorLeftDigital PB5
 
-#define motorRightPWM PB4
+#define motorRightPWM PE4
 #define motorRightDigital PH5
 
 #define encoderRightC1 PE4
@@ -36,9 +36,9 @@ void configureIO() {
     DDRA &= ~(1 << lineLeft);
 
     // Motors
-    DDRH |= (1 << motorLeftPWM);
+    DDRE |= (1 << motorLeftPWM);
     DDRB |= (1 << motorLeftDigital);
-    DDRB |= (1 << motorRightPWM);
+    DDRE |= (1 << motorRightPWM);
     DDRH |= (1 << motorRightDigital);
 }
 
@@ -47,28 +47,28 @@ void configurePWM() {
      *  COM2A1 and COM2B1 : Clear when count reaches Compare Match
      *  WGM : PWM Mode
      */
-    TCCR2A |= (1 << COM2A1) | (1 << COM2B1) | (1 << WGM20) | (1 << WGM21);
-    TCCR2B |= (1 << WGM22) | (1 << CS20);
+    TCCR3A |= (1 << COM3A1) | (1 << COM3B1) | (1 << WGM30) | (1 << WGM31);
+    TCCR3B |= (1 << CS20);
 }
 
 void setRightMotor(uint8_t velocity) {
     if (velocity > 0) {
-        OCR2A = (velocity / 2) * 255;
-        PORTD &= ~(1 << motorLeftDigital);
+        OCR3A = (velocity / 2) * 255;
+        PORTB &= ~(1 << motorLeftDigital);
     } else if (velocity < 0) {
-        OCR2A = 255 - (velocity / 2) * 255;
-        PORTD |= (1 << motorLeftDigital);
+        OCR3A = 255 - (velocity / 2) * 255;
+        PORTB |= (1 << motorLeftDigital);
     }
 
 }
 
 void setLeftMotor(uint8_t velocity) {
     if (velocity > 0) {
-        OCR2B = (velocity / 2) * 255;
-        PORTD &= ~(1 << motorRightDigital);
+        OCR3B = (velocity / 2) * 255;
+        PORTH &= ~(1 << motorRightDigital);
     } else if (velocity < 0) {
-        OCR2B = 255 - (velocity / 2) * 255;
-        PORTD |= (1 << motorRightDigital);
+        OCR3B = 255 - (velocity / 2) * 255;
+        PORTH |= (1 << motorRightDigital);
     }
 }
 
@@ -87,7 +87,10 @@ int main() {
         rightCenter = PINA && (1 << lineCenterRight) ? 1 : 0;
         right = PINA && (1 << lineRight) ? 1 : 0;
 
-        if (!left && !leftCenter && !center && !rightCenter && !right){
+        setRightMotor(SLOWFORWARD);
+        setLeftMotor(SLOWFORWARD); // logica destas funções está ao contrário, pois só anda no slow forward e não no fast
+
+        /*if (!left && !leftCenter && !center && !rightCenter && !right){
             setRightMotor(STOP);
             setLeftMotor(STOP);
         }
@@ -106,6 +109,6 @@ int main() {
         } else if (!rightCenter && right){
             setRightMotor(STOP);
             setLeftMotor(FASTFORWARD);
-        }
+        }*/
     }
 }
