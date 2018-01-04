@@ -16,16 +16,29 @@
 #define motorRightPWM PE4
 #define motorRightDigital PH5
 
-#define encoderRightC1 PE4
-#define encoderRightC2 PE5
+#define encoderRightC1 PD0
+#define encoderRightC2 PD1
 #define encoderLeftC1 PD2
 #define encoderLeftC2 PD3
 
-#define FASTFORWARD 2
-#define SLOWFORWARD 1
+#define FASTFORWARD 1000
+#define SLOWFORWARD 400
 #define STOP 0
 #define SLOWBACKWARD (-1)
 #define FASTBACKWARD (-2)
+
+#ifndef F_CPU
+#define F_CPU 16000000ul
+#endif
+#define BAUD 57600
+#define UBBR_VAL ((F_CPU/(BAUD*16))-1) // Calculate UBBR value based on desired baudrate
+
+void configureUSART(){
+    UBRR0 = UBBR_VAL;
+    UCSR0B = 1 << TXEN0; // Enable Transmitter (TX)
+    UCSR0C = 3 << UCSZ00; // Data frame length
+    init_printf_tools();
+}
 
 void configureIO() {
     // Line Sensors
@@ -40,6 +53,10 @@ void configureIO() {
     DDRB |= (1 << motorLeftDigital);
     DDRE |= (1 << motorRightPWM);
     DDRH |= (1 << motorRightDigital);
+
+    // Encoders
+    DDRD|=(1<<encoderLeftC2)|(1<<encoderLeftC1);
+    DDRD|=(1<<encoderRightC2)|(1<<encoderRightC1);
 }
 
 void configurePWM() {
@@ -47,50 +64,38 @@ void configurePWM() {
      *  COM2A1 and COM2B1 : Clear when count reaches Compare Match
      *  WGM : PWM Mode
      */
-    TCCR3A |= (1 << COM3A1) | (1 << COM3B1) | (1 << WGM30) | (1 << WGM31);
-    TCCR3B |= (1 << CS20);
+    ICR3 = 1000;
+    TCCR3A |= (1<<COM3A1) | (1<<COM3B1) | (1<<WGM31);
+    TCCR3B |= (1<<WGM32) | (1<<WGM33) | (1<<CS31);
 }
 
 void setRightMotor(uint8_t velocity) {
-    if (velocity > 0) {
-        OCR3A = (velocity / 2) * 255;
-        PORTB &= ~(1 << motorLeftDigital);
-    } else if (velocity < 0) {
-        OCR3A = 255 - (velocity / 2) * 255;
-        PORTB |= (1 << motorLeftDigital);
-    }
-
+        OCR3B = velocity;
+        PORTH &= ~(1 << motorRightDigital);
 }
 
 void setLeftMotor(uint8_t velocity) {
-    if (velocity > 0) {
-        OCR3B = (velocity / 2) * 255;
-        PORTH &= ~(1 << motorRightDigital);
-    } else if (velocity < 0) {
-        OCR3B = 255 - (velocity / 2) * 255;
-        PORTH |= (1 << motorRightDigital);
-    }
+        OCR3A = velocity;
+        PORTB &= ~(1 << motorLeftDigital);
 }
 
 int main() {
-    init_printf_tools();
 
+    configureUSART();
     configureIO();
     configurePWM();
 
-    uint8_t left, leftCenter, center, rightCenter, right;
+    uint8_t left, leftCenter, center, rightCenter, right, state=0, enRC1, enRC2;
+    uint64_t revRight=0;
 
     while (1) {
-        left = PINA && (1 << lineLeft) ? 1 : 0;
-        leftCenter = PINA && (1 << lineCenterLeft) ? 1 : 0;
-        center = PINA && (1 << lineCenter) ? 1 : 0;
-        rightCenter = PINA && (1 << lineCenterRight) ? 1 : 0;
-        right = PINA && (1 << lineRight) ? 1 : 0;
+        left = PINA & (1 << lineLeft) ? 1 : 0;
+        leftCenter = PINA & (1 << lineCenterLeft) ? 1 : 0;
+        center = PINA & (1 << lineCenter) ? 1 : 0;
+        rightCenter = PINA & (1 << lineCenterRight) ? 1 : 0;
+        right = PINA & (1 << lineRight) ? 1 : 0;
 
-        setRightMotor(SLOWFORWARD);
-        setLeftMotor(SLOWFORWARD); // logica destas funções está ao contrário, pois só anda no slow forward e não no fast
-
-        /*if (!left && !leftCenter && !center && !rightCenter && !right){
+        if (!left && !leftCenter && !center && !rightCenter && !right){
             setRightMotor(STOP);
             setLeftMotor(STOP);
         }
@@ -103,12 +108,52 @@ int main() {
         } else if (leftCenter && ! left){
             setRightMotor(FASTFORWARD);
             setLeftMotor(SLOWFORWARD);
-        } else if (!leftCenter && left){
+        } else if (left){
             setRightMotor(FASTFORWARD);
             setLeftMotor(STOP);
-        } else if (!rightCenter && right){
+        } else if (right){
             setRightMotor(STOP);
             setLeftMotor(FASTFORWARD);
+        }
+        /*
+        // verificar se C1 e C2 estão trocados
+
+        enRC1 = (PIND & (1<<encoderLeftC1))?1:0;
+        enRC2 = (PIND & (1<<encoderLeftC2))?1:0;
+
+        if(state==0 && enRC1 && !enRC2){
+        	revRight++;
+        	state=1;
+        }
+        else if(state==1 && !enRC1 && !enRC2){
+        	revRight--;
+        	state=0;
+        }
+        else if(state==1 && enRC1 && enRC2){
+        	revRight++;
+        	state=2;
+        }
+        else if(state==2 && enRC1 && !enRC2){
+        	revRight--;
+        	state=1;
+        }
+        else if(state==2 && !enRC1 && enRC2){
+        	revRight++;
+        	state=3;
+        }
+        else if(state==3 && enRC1 && enRC2){
+        	revRight--;
+        	state=2;
+        }
+        else if(state==3 && !enRC1 && !enRC2){
+            revRight++;
+            state=0;
+        }
+        else if(state == 0 && !enRC1 && enRC2){
+        	revRight--;
+        	state = 3;
         }*/
+        //printf("state: %u C1: %u C2: %u counter: %u\n", state, enRC1, enRC2, revRight);
+        printf("%u %u %u %u %u\n", left, leftCenter, center, rightCenter, right);
     }
 }
