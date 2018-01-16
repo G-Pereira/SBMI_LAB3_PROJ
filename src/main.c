@@ -10,11 +10,10 @@
 #define lineCenterLeft PA0
 #define lineLeft PA1
 
-#define motorLeftPWM PE3
-#define motorLeftDigital PB5
-
-#define motorRightPWM PE4
-#define motorRightDigital PH5
+#define motorLeftPWM PL3
+#define motorLeftDigital PL2
+#define motorRightPWM PL4
+#define motorRightDigital PL5
 
 #define encoderRightC1 PD0
 #define encoderRightC2 PD1
@@ -24,8 +23,8 @@
 #define FASTFORWARD 1000
 #define SLOWFORWARD 400
 #define STOP 0
-#define SLOWBACKWARD (-1)
-#define FASTBACKWARD (-2)
+#define SLOWBACKWARD -SLOWFORWARD
+#define FASTBACKWARD -FASTFORWARD
 
 #ifndef F_CPU
 #define F_CPU 16000000ul
@@ -37,7 +36,6 @@ void configureUSART(){
     UBRR0 = UBBR_VAL;
     UCSR0B = 1 << TXEN0; // Enable Transmitter (TX)
     UCSR0C = 3 << UCSZ00; // Data frame length
-    init_printf_tools();
 }
 
 void configureIO() {
@@ -49,10 +47,10 @@ void configureIO() {
     DDRA &= ~(1 << lineLeft);
 
     // Motors
-    DDRE |= (1 << motorLeftPWM);
-    DDRB |= (1 << motorLeftDigital);
-    DDRE |= (1 << motorRightPWM);
-    DDRH |= (1 << motorRightDigital);
+    DDRL |= (1 << motorLeftPWM);
+    DDRL |= (1 << motorLeftDigital);
+    DDRL |= (1 << motorRightPWM);
+    DDRL |= (1 << motorRightDigital);
 
     // Encoders
     DDRD|=(1<<encoderLeftC2)|(1<<encoderLeftC1);
@@ -65,18 +63,23 @@ void configurePWM() {
      *  WGM : PWM Mode
      */
     ICR3 = 1000;
-    TCCR3A |= (1<<COM3A1) | (1<<COM3B1) | (1<<WGM31);
-    TCCR3B |= (1<<WGM32) | (1<<WGM33) | (1<<CS31);
+    TCCR5A |= (1<<COM3A1) | (1<<COM3B1) | (1<<WGM31);
+    TCCR5B |= (1<<WGM32) | (1<<WGM33) | (1<<CS31);
 }
 
 void setRightMotor(uint8_t velocity) {
-        OCR3B = velocity;
-        PORTH &= ~(1 << motorRightDigital);
+        OCR5B = velocity;
+        PORTL &= ~(1 << motorRightDigital);
 }
 
 void setLeftMotor(uint8_t velocity) {
-        OCR3A = velocity;
-        PORTB &= ~(1 << motorLeftDigital);
+        OCR5A = velocity;
+        PORTL &= ~(1 << motorLeftDigital);
+}
+
+void showTurn(uint64_t revs){
+    while(0==(UCSR1A&(1<<UDRE1)));
+    UDR1 = revs;
 }
 
 int main() {
@@ -115,8 +118,6 @@ int main() {
             setRightMotor(STOP);
             setLeftMotor(FASTFORWARD);
         }
-        /*
-        // verificar se C1 e C2 estão trocados
 
         enRC1 = (PIND & (1<<encoderLeftC1))?1:0;
         enRC2 = (PIND & (1<<encoderLeftC2))?1:0;
@@ -152,8 +153,7 @@ int main() {
         else if(state == 0 && !enRC1 && enRC2){
         	revRight--;
         	state = 3;
-        }*/
-        //printf("state: %u C1: %u C2: %u counter: %u\n", state, enRC1, enRC2, revRight);
-        printf("%u %u %u %u %u\n", left, leftCenter, center, rightCenter, right);
+        }
+        showTurn(revRight);
     }
 }
