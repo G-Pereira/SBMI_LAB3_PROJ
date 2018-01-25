@@ -1,17 +1,19 @@
 #include <avr/io.h>
+#include <avr/interrupt.h>
+#include "rc5.h"
 
-#define lineRight PA5
-#define lineCenterRight PA2
-#define lineCenter PA3
-#define lineCenterLeft PA0
-#define lineLeft PA1
+#define lineRight PH1
+#define lineCenterRight PH0
+#define lineCenter PJ0
+#define lineCenterLeft PJ1
+#define lineLeft PB7
 
 #define motorLeftPWM PL1
 #define motorLeftDigital PL2
 #define motorRightPWM PL4
 #define motorRightDigital PL3
 
-#define powerButton PG1
+#define powerButton PB6
 
 #define VREF 5
 
@@ -25,31 +27,31 @@
 
 void toggleHeadLights(char state){
     if (state){
-        PORTG |= (1 << PG0);
-        PORTL |= (1 << PL7);
-        PORTL |= (1 << PL6);
-        PORTL |= (1 << PL5);
+        PORTC |= (1 << PC0);
+        PORTD |= (1 << PD7);
+        PORTG |= (1 << PG2);
+        PORTG |= (1 << PG1);
     } else{
-        PORTG &= ~(1 << PG0);
-        PORTL &= ~(1 << PL7);
-        PORTL &= ~(1 << PL6);
-        PORTL &= ~(1 << PL5);
+        PORTC &= ~(1 << PC0);
+        PORTD &= ~(1 << PD7);
+        PORTG &= ~(1 << PG2);
+        PORTG &= ~(1 << PG1);
     }
 }
 
 void configureUSART(){
-    UBRR1 = UBBR_VAL;
-    UCSR1B = 1 << RXEN1; // Enable Receiver (RX)
-    UCSR1C = 3 << UCSZ10; // Data frame length
+    UBRR0 = UBBR_VAL;
+    UCSR0B = 1 << TXEN0; // Enable Transmitter (TX)
+    UCSR0C = 3 << UCSZ00; // Data frame length
 }
 
 void configureIO() {
     // Line Sensors
-    DDRA &= ~(1 << lineRight);
-    DDRA &= ~(1 << lineCenterRight);
-    DDRA &= ~(1 << lineCenter);
-    DDRA &= ~(1 << lineCenterLeft);
-    DDRA &= ~(1 << lineLeft);
+    DDRH &= ~(1 << lineRight);
+    DDRH &= ~(1 << lineCenterRight);
+    DDRJ &= ~(1 << lineCenter);
+    DDRJ &= ~(1 << lineCenterLeft);
+    DDRB &= ~(1 << lineLeft);
 
     // Motors
     DDRL |= (1 << motorLeftPWM);
@@ -58,24 +60,24 @@ void configureIO() {
     DDRL |= (1 << motorRightDigital);
 
     // Head Lights
-    DDRG |= (1 << PG0);
-    DDRL |= (1 << PL7);
-    DDRL |= (1 << PL6);
-    DDRL |= (1 << PL5);
+    DDRC |= (1 << PC0);
+    DDRD |= (1 << PD7);
+    DDRG |= (1 << PG2);
+    DDRG |= (1 << PG1);
 
     // Power Button
-    DDRG |= (1 << powerButton);
+    DDRB |= (1 << powerButton);
 
     // Luminosity Indicator
     DDRE |= (1 << PE4);
     DDRE |= (1 << PE5);
     DDRG |= (1 << PG5);
+    DDRB |= (1 << PB4);
     DDRE |= (1 << PE3);
     DDRH |= (1 << PH3);
     DDRH |= (1 << PH4);
     DDRH |= (1 << PH5);
     DDRH |= (1 << PH6);
-    DDRB |= (1 << PB4);
     DDRB |= (1 << PB5);
 }
 
@@ -93,40 +95,36 @@ void configureADC(){
     // Definir Vref=AVcc
     ADMUX = ADMUX | (1<<REFS0);
     // Desativar buffer digital em PC0
-    DIDR0 |= (1<<ADC4D);
+    //DIDR1 |= (1<<ADC12D);
     // Pré-divisor em 128 e ativar ADC
     ADCSRA |= (7<<ADPS0)|(1<<ADEN); 
 }
 
-uint16_t readPhotoResistor(){
-    ADMUX |= (1 << MUX2);
+unsigned int readPhotoResistor(){
     ADCSRA |= (1 << ADSC);
-    showLuminosity(ADC/10); // número de 0-10
     while(ADCSRA & (1<<ADSC));
+    showLuminosity(ADC/100); // número de 0-10
     return ADC;
 }
 
 void setMotors(int linearVelocity, int angularVelocity){
-    if(linearVelocity<0){
-        OCR5A = TOP+linearVelocity+angularVelocity;
-        PORTL |= (1 << motorLeftDigital);
-        OCR5B = TOP+linearVelocity-angularVelocity;
+    int right, left;
+    right = linearVelocity + angularVelocity;
+    left = linearVelocity - angularVelocity;
+    if (right<0){
+        OCR5A = TOP+right;
         PORTL |= (1 << motorRightDigital);
-    } else {
-        OCR5A = linearVelocity-angularVelocity;
-        PORTL &= ~(1 << motorLeftDigital);
-        OCR5B = linearVelocity+angularVelocity;
+    } else{
+        OCR5A = right;
         PORTL &= ~(1 << motorRightDigital);
     }
-}
-
-uint8_t receiveRemote(){
-    if (!(UCSR1A | (1 << RXC1))) return 0;
-    if (UDR1 == 'f') return 1;
-    if (UDR1 == 'b') return 2;
-    if (UDR1 == 'l') return 3;
-    if (UDR1 == 'r') return 4;
-    return 0;
+    if (left<0){
+        OCR5B = TOP+left;
+        PORTL |= (1 << motorLeftDigital);
+    } else{
+        OCR5B = left;
+        PORTL &= ~(1 << motorLeftDigital);
+    }
 }
 
 // Dividir por 10 ao chamar a função 0-10
@@ -156,28 +154,33 @@ void showLuminosity(uint8_t percentage){
     }
     switch(percentage){
         case 0:
-            PORTE |= (1 << PE5);
+            PORTE &= ~(1 << PE5);
         case 1:
-            PORTG |= (1 << PG5);
+            PORTG &= ~(1 << PG5);
         case 2:
-            PORTE |= (1 << PE3);
+            PORTE &= ~(1 << PE3);
         case 3:
-            PORTH |= (1 << PH3);
+            PORTH &= ~(1 << PH3);
         case 4:
-            PORTH |= (1 << PH4);
+            PORTH &= ~(1 << PH4);
         case 5:
-            PORTH |= (1 << PH5);
+            PORTH &= ~(1 << PH5);
         case 6:
-            PORTH |= (1 << PH6);
+            PORTH &= ~(1 << PH6);
         case 7:
-            PORTB |= (1 << PB4);
+            PORTB &= ~(1 << PB4);
         case 8:
-            PORTB |= (1 << PB5);
+            PORTB &= ~(1 << PB5);
         case 9:
-            PORTE |= (1 << PE4);
+            PORTE &= ~(1 << PE4);
         case 10:
         break;
     }
+}
+
+void debugPrint(char print){
+    while(0==(UCSR0A&(1<<UDRE0)));
+    UDR0 = print;
 }
 
 int main() {
@@ -185,25 +188,25 @@ int main() {
     configureIO();
     configurePWM();
     configureADC();
+    RC5_Init();
+    sei();
 
     uint8_t left, leftCenter, center, rightCenter, right;
-    uint8_t state=0;
+    uint8_t state=2;
     uint8_t on=0;
-    uint16_t lightIntensity;
+    uint16_t command;
 
     while (1) {
         // Read Inputs
-        on = PING & (1 << powerButton) ? 1 : 0;
-        left = PINA & (1 << lineLeft) ? 1 : 0;
-        leftCenter = PINA & (1 << lineCenterLeft) ? 1 : 0;
-        center = PINA & (1 << lineCenter) ? 1 : 0;
-        rightCenter = PINA & (1 << lineCenterRight) ? 1 : 0;
-        right = PINA & (1 << lineRight) ? 1 : 0;
+        on = PINB & (1 << powerButton) ? 1 : 0;
+        left = PINB & (1 << lineLeft) ? 1 : 0;
+        leftCenter = PINJ & (1 << lineCenterLeft) ? 1 : 0;
+        center = PINJ & (1 << lineCenter) ? 1 : 0;
+        rightCenter = PINH & (1 << lineCenterRight) ? 1 : 0;
+        right = PINH & (1 << lineRight) ? 1 : 0;
 
         // State Machine for moving logic
-        if(0 != receiveRemote()){
-            state = 7;
-        } else if(0 == state && on){
+        if(0 == state && on){
             state = 1;
         } else if (1 == state && !on){
             state = 2;
@@ -225,46 +228,45 @@ int main() {
             state = 2;
         } else if (6 == state && leftCenter){
             state = 5;
+        }else if (5 == state && rightCenter){
+            state = 3;
+        }else if (3 == state && leftCenter){
+            state = 5;
+        }else if (6 == state && rightCenter){
+            state = 3;
+        }else if (4 == state && leftCenter){
+            state = 5;
         }
+        //setMotors(0, 0);
 
         if ( 0 == state || 1 == state){
             setMotors(0, 0);
         }
-        if (1 == state)
-            setMotors(500,0);
         if (2 == state)
-            setMotors(400*0.8, 120);
+            setMotors(300, 0);
         if (3 == state)
-            setMotors(0, 400);
+            setMotors(200, -200);
         if (4 == state)
-            setMotors(400*0.8, -120);
+            setMotors(100, -200);
         if (5 == state)
-            setMotors(0, -400);
+            setMotors(200, 200);
+        if (6 == state)
+            setMotors(100, 200);
 
-        // Remote Logic
-        if (7 == state){
-            switch (receiveRemote()){
-                case 1:
-                setMotors(400, 0);
-                break;
-                case 2:
-                setMotors(-400, 0);
-                break;
-                case 3:
-                setMotors(0, 200);
-                break;
-                case 4:
-                setMotors(400, -200);
-                break;
-                default:
-                setMotors(0, 0);
-                break;
+        if(RC5_NewCommandReceived(&command)){
+            RC5_Reset();
+            debugPrint('b');
+            if(RC5_GetStartBits(command) != 3)
+            {
+                /* ERROR */
             }
+            
+            uint8_t toggle = RC5_GetToggleBit(command);
+            uint8_t address = RC5_GetAddressBits(command);
+            uint8_t cmdnum = RC5_GetCommandBits(command);
+            debugPrint('a');
         }
-
-        lightIntensity = readPhotoResistor();
-
-        if(lightIntensity<200)
+        if(readPhotoResistor()<500)
             toggleHeadLights(1);
         else
             toggleHeadLights(0);
