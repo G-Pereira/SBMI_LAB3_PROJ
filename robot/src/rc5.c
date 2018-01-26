@@ -31,7 +31,7 @@ State state = STATE_BEGIN;
 void RC5_Init()
 {
     /* Set INT0 to trigger on any edge */
-    EICRA |= _BV(ISC00);
+    EICRA |= _BV(ISC20);
     /* Set PD2 to input */
     DDRD &= ~_BV(PD2);
     
