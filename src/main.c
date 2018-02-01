@@ -1,6 +1,5 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include "rc5.h"
 
 #define lineRight PH1
 #define lineCenterRight PH0
@@ -13,7 +12,7 @@
 #define motorRightPWM PL4
 #define motorRightDigital PL2
 
-#define powerButton PD3
+#define powerButton PE5
 
 #define VREF 5
 
@@ -26,7 +25,13 @@
 #define BAUD 57600
 #define UBBR_VAL ((F_CPU/(BAUD*16))-1) // Calculate UBBR value based on desired baudrate
 
+uint8_t volatile state = 0;
+
 uint8_t volatile time=0;
+
+ISR(INT5_vect){
+    state = 2;
+}
 
 void toggleHeadLights(char state){
     if (state){
@@ -69,11 +74,11 @@ void configureIO() {
     DDRC |= (1 << PC1);
 
     // Power Button
-    DDRD &= ~(1 << powerButton);
+    DDRE &= ~(1 << powerButton);
 
     // Luminosity Indicator
     DDRE |= (1 << PE4);
-    DDRE |= (1 << PE5);
+    DDRC |= (1 << PC6);
     DDRG |= (1 << PG5);
     DDRB |= (1 << PB4);
     DDRE |= (1 << PE3);
@@ -84,6 +89,7 @@ void configureIO() {
     DDRB |= (1 << PB5);
 }
 
+// Configuração do timer 4 para filtragem dos falsos positivos no contador de voltas
 void contigureTimer(){
 	CLKPR = 0x80; // Set CLKPCE, clear other bits
 	CLKPR = 3; //clock prescaler: 8
@@ -99,10 +105,6 @@ ISR(TIMER4_OVF_vect){
 	time++;
 	TCNT4=T4COUNT;
 }
-
-/*void configureSleepMode(){
-    SMCR = (1 << SM1);
-}*/
 
 void configurePWM() {
     /*
@@ -121,6 +123,7 @@ void configureADC(){
     ADCSRA |= (7<<ADPS0)|(1<<ADEN);
 }
 
+// Leitura do estado (tensão) da bateria usando um Conversor Analógico/Digital (ADC)
 unsigned int readBattery(){
 	ADMUX = (ADMUX & 0xF0) | (1 << MUX0);
 	ADCSRA |= (1 << ADSC);
@@ -129,6 +132,7 @@ unsigned int readBattery(){
 	return ADC;
 }
 
+// Leitura do valor de tensão usando um Conversor Analógico/Digital (ADC)
 unsigned int readPhotoResistor(){
     ADMUX = (ADMUX & 0xF0);
     ADCSRB = 0;
@@ -137,6 +141,7 @@ unsigned int readPhotoResistor(){
     return ADC;
 }
 
+// Traduzir a velocidade linear e angular pretendida em movimento efetivo dos motores fazndo uso de PWM
 void setMotors(int linearVelocity, int angularVelocity){
     int right, left;
     left = linearVelocity + angularVelocity;
@@ -157,7 +162,7 @@ void setMotors(int linearVelocity, int angularVelocity){
     }
 }
 
-// Dividir por 10 ao chamar a função 0-10
+// Dividir por 10 para obter uma escala de 0-10 para colocar no mostrador de 10 segmentos
 void showBattery(uint8_t percentage){
     switch(percentage){
         case 10:
@@ -179,12 +184,12 @@ void showBattery(uint8_t percentage){
         case 2:
             PORTG |= (1 << PG5);
         case 1:
-            PORTE |= (1 << PE5);
+            PORTC |= (1 << PC6);
         break;
     }
     switch(percentage){
         case 0:
-            PORTE &= ~(1 << PE5);
+            PORTC &= ~(1 << PC6);
         case 1:
             PORTG &= ~(1 << PG5);
         case 2:
@@ -218,18 +223,14 @@ int main() {
     configureIO();
     configurePWM();
     configureADC();
-    /*RC5_init();
-    timer_init();
-    sei();*/
 
     uint8_t left, leftCenter, center, rightCenter, right;
-    uint8_t state = 0;
     uint8_t on=0;
     uint8_t laps = 0;
 
     while (1) {
         // Read Inputs
-        on = PIND & (1 << powerButton) ? 1 : 0;
+        on = PINE & (1 << powerButton) ? 1 : 0;
         left = PINB & (1 << lineLeft) ? 1 : 0;
         leftCenter = PINJ & (1 << lineCenterLeft) ? 1 : 0;
         center = PINJ & (1 << lineCenter) ? 1 : 0;
@@ -273,7 +274,7 @@ int main() {
             state = 6;
         }
 
-        if ( 0 == state || 1 == state)
+        if (0 == state || 1 == state)
             setMotors(0, 0);
         else if (3 == state)
             setMotors(400, 0);
@@ -285,16 +286,6 @@ int main() {
             setMotors(300, -150);
         else if (7 == state)
             setMotors(200, -250);
-
-        /*if(RC5_NewCommandReceived()){
-            //uint8_t toggle = RC5_GetToggleBit(command);
-            //uint8_t address = RC5_GetAddressBits(command);
-            uint8_t cmdnum = RC5_GetCommandBits(command);
-            if(cmdnum == 51){
-            state = 0;
-            debugPrint('a');
-            }    
-        }*/
 
         readBattery();
         if(readPhotoResistor()<250)
