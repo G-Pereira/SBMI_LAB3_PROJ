@@ -277,15 +277,15 @@ int main() {
         if (0 == state || 1 == state)
             setMotors(0, 0);
         else if (3 == state)
-            setMotors(400, 0);
+            setMotors(330, 0);
         else if (4 == state)
-            setMotors(300, 150);
+            setMotors(230, 100);
         else if (5 == state)
-            setMotors(200, 250);
+            setMotors(170, 150);
         else if (6 == state)
-            setMotors(300, -150);
+            setMotors(230, -100);
         else if (7 == state)
-            setMotors(200, -250);
+            setMotors(170, -150);
 
         readBattery();
         if(readPhotoResistor()<250)
